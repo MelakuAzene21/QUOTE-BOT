@@ -1,6 +1,6 @@
 import TelegramBot from "node-telegram-bot-api";
 import { env } from "./config/env.js";
-import { getRandomQuote, getCategoryQuote } from "./api/quotes.js";
+import { getRandomQuote } from "./api/quotes.js";
 import { generateQuoteImage } from "./utils/quoteImage.js";
 
 export function startBot() {
@@ -25,7 +25,10 @@ export function startBot() {
 
         // Show typing animation
         await bot.sendChatAction(chatId, "typing");
-
+        // Send a loading message
+        const loadingMsg = await bot.sendMessage(chatId, "⏳ Generating your quote...");
+        // Replace loader with final image
+        await bot.deleteMessage(chatId, loadingMsg.message_id);
         const { content, author } = await getRandomQuote();
         const imageBuffer = await generateQuoteImage(content, author);
 
@@ -34,33 +37,6 @@ export function startBot() {
         });
     });
 
-
-    // Inside /categories <name> command
-    bot.onText(/\/categories (.+)/, async (msg, match) => {
-        const chatId = msg.chat.id;
-        const category = match[1];
-
-        // Show typing animation
-        await bot.sendChatAction(chatId, "typing");
-
-        const { content, author } = await getCategoryQuote(category);
-        const imageBuffer = await generateQuoteImage(content, author);
-
-        await bot.sendPhoto(chatId, imageBuffer, {
-            caption: `📌 ${category.toUpperCase()} Quote`,
-        });
-    });
-
-    // Guide for categories
-    bot.onText(/\/categories$/, (msg) => {
-        bot.sendMessage(
-            msg.chat.id,
-            "📚 Available categories:\n" +
-            "➡️ /categories life\n" +
-            "➡️ /categories love\n" +
-            "➡️ /categories wisdom"
-        );
-    });
-
+   
     return bot;
 }

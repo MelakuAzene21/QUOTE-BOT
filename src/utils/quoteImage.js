@@ -20,7 +20,7 @@ export async function generateQuoteImage(content, author) {
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 28px Arial";
     ctx.textAlign = "center";
-    ctx.fillText("✨ Quote of the Day ✨", width / 2, 60);
+    // ctx.fillText("✨ Quote of the Day ✨", width / 2, 60);
 
     // Quote text (wrap words properly)
     ctx.font = "24px Arial";
