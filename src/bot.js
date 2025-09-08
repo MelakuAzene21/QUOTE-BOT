@@ -6,11 +6,46 @@ import { getRandomQuote } from "./api/quotes.js";
 import { generateQuoteImage } from "./utils/quoteImage.js";
 import cron from "node-cron";
 import { Subscriber } from "./models/Subscriber.js";
-
 export async function startBot() {
-    // Connect to MongoDB
-    await mongoose.connect(process.env.MONGO_URI);
-    console.log("✅ Connected to MongoDB");
+    try {
+        // Connect to MongoDB with proper options
+        await mongoose.connect(process.env.MONGO_URI, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+            serverSelectionTimeoutMS: 5000, // 5 second timeout
+            socketTimeoutMS: 30000, // 30 second socket timeout
+        });
+        console.log("✅ Connected to MongoDB");
+
+        // Handle connection events for better monitoring
+        mongoose.connection.on('error', (err) => {
+            console.error('❌ MongoDB connection error:', err);
+        });
+
+        mongoose.connection.on('disconnected', () => {
+            console.warn('⚠️ MongoDB disconnected');
+        });
+
+        mongoose.connection.on('reconnected', () => {
+            console.log('🔁 MongoDB reconnected');
+        });
+
+    } catch (error) {
+        console.error('❌ Failed to connect to MongoDB:', error);
+
+        // Provide specific error messages for common issues
+        if (error.code === 'ETIMEOUT') {
+            console.error('💡 Tip: Check your internet connection and MongoDB Atlas whitelist settings');
+        } else if (error.code === 'ENOTFOUND') {
+            console.error('💡 Tip: Check your MongoDB connection string and cluster URL');
+        } else if (error.code === 'ECONNREFUSED') {
+            console.error('💡 Tip: MongoDB server might be down or credentials are incorrect');
+        }
+
+        // Exit the process with error code
+        process.exit(1);
+    }
+
 
     const bot = new TelegramBot(env.TELEGRAM_BOT_TOKEN, { polling: true });
     console.log("🚀 Quote Bot is running...");
