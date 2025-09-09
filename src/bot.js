@@ -7,10 +7,12 @@ import { generateQuoteImage } from "./utils/quoteImage.js";
 import cron from "node-cron";
 import { Subscriber } from "./models/Subscriber.js";
 import express from "express";
+
 // Create Express app for webhook handling
 const app = express();
 app.use(express.json()); // For parsing application/json
 console.log('✅ Webhook set to: ',env.RENDER_EXTERNAL_URL);
+
 export async function startBot() {
     try {
         // Connect to MongoDB with proper options
@@ -51,7 +53,6 @@ export async function startBot() {
         process.exit(1);
     }
 
-
     // Initialize bot with webhook option (no polling)
     const bot = new TelegramBot(env.TELEGRAM_BOT_TOKEN, {
         polling: false, // Disable polling
@@ -77,22 +78,28 @@ export async function startBot() {
 
     console.log("🚀 Quote Bot is running with webhooks...");
 
-
     // /start command
-    // inside /start command
     bot.onText(/\/start/, (msg) => {
         const chatId = msg.chat.id;
 
         bot.sendMessage(
             chatId,
-            "👋 Welcome to Quote Generator Bot!\n\nChoose an option below:",
+            "🌟 *Welcome to Quote Generator Bot!*\n\n✨ Get inspired with beautiful quotes from various categories\n🎯 Choose from Motivation, Love, Life, Science, and Funny quotes\n📅 Subscribe for daily quotes at 9:00 AM\n\n*What would you like to do?*",
             {
+                parse_mode: 'Markdown',
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: "📝 Random Quote", callback_data: "quote" }],
-                        [{ text: "🎯 Quote by Category", callback_data: "category_menu" }],
-                        [{ text: "📅 Subscribe", callback_data: "subscribe" }],
-                        [{ text: "❌ Unsubscribe", callback_data: "unsubscribe" }],
+                        [
+                            { text: "🎲 Random Quote", callback_data: "quote" },
+                            { text: "🎯 Categories", callback_data: "category_menu" }
+                        ],
+                        [
+                            { text: "📅 Subscribe", callback_data: "subscribe" },
+                            { text: "❌ Unsubscribe", callback_data: "unsubscribe" }
+                        ],
+                        [
+                            { text: "❓ Help & Commands", callback_data: "help" }
+                        ]
                     ],
                 },
             }
@@ -109,10 +116,23 @@ export async function startBot() {
             const { content, author } = await getRandomQuote();
             const imageBuffer = await generateQuoteImage(content, author);
             await bot.sendPhoto(chatId, imageBuffer, {
-                caption: `📝 "${content}"\n- ${author}`,
+                caption: `🎲 *Random Quote*\n\n📝 "${content}"\n\n— *${author}*`,
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            { text: "🔄 Another Random", callback_data: "quote" },
+                            { text: "🎯 Categories", callback_data: "category_menu" }
+                        ],
+                        [
+                            { text: "🏠 Main Menu", callback_data: "main_menu" }
+                        ]
+                    ]
+                }
             });
         } else if (action === "category_menu") {
-            await bot.sendMessage(chatId, "Choose a category:", {
+            await bot.sendMessage(chatId, "🎯 *Choose a Quote Category:*\n\n✨ Select from our curated collection of inspiring quotes!", {
+                parse_mode: 'Markdown',
                 reply_markup: {
                     inline_keyboard: [
                         [
@@ -125,6 +145,9 @@ export async function startBot() {
                         ],
                         [
                             { text: "😂 Funny", callback_data: "category:funny" }
+                        ],
+                        [
+                            { text: "🔙 Back to Main Menu", callback_data: "main_menu" }
                         ]
                     ]
                 }
@@ -134,17 +157,95 @@ export async function startBot() {
             await bot.sendChatAction(chatId, "typing");
             const { content, author } = await getQuoteByCategory(category);
             const imageBuffer = await generateQuoteImage(content, author);
+            
+            const categoryEmojis = {
+                motivation: "💪",
+                love: "❤️",
+                life: "🌿",
+                science: "🔬",
+                funny: "😂"
+            };
+            
+            const emoji = categoryEmojis[category] || "🎯";
+            const categoryName = category.charAt(0).toUpperCase() + category.slice(1);
+            
             await bot.sendPhoto(chatId, imageBuffer, {
-                caption: `🎯 ${category.charAt(0).toUpperCase()}${category.slice(1)} Quote\n📝 "${content}"\n- ${author}`,
+                caption: `${emoji} *${categoryName} Quote*\n\n📝 "${content}"\n\n— *${author}*`,
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            { text: "🔄 Another Quote", callback_data: `category:${category}` },
+                            { text: "🎲 Random", callback_data: "quote" }
+                        ],
+                        [
+                            { text: "🔙 Back to Categories", callback_data: "category_menu" },
+                            { text: "🏠 Main Menu", callback_data: "main_menu" }
+                        ]
+                    ]
+                }
             });
         } else if (action === "subscribe") {
             await bot.sendChatAction(chatId, "typing");
             await Subscriber.updateOne({ chatId }, { chatId }, { upsert: true });
-            bot.sendMessage(chatId, "✅ You are subscribed for daily quotes at 9:00 AM.");
+            bot.sendMessage(chatId, "🎉 *Successfully Subscribed!*\n\n📅 You'll receive daily inspirational quotes at 9:00 AM (Africa/Nairobi time)\n\n✨ Get ready to be inspired every morning!", {
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            { text: "🏠 Main Menu", callback_data: "main_menu" }
+                        ]
+                    ]
+                }
+            });
         } else if (action === "unsubscribe") {
             await bot.sendChatAction(chatId, "typing");
             await Subscriber.deleteOne({ chatId });
-            bot.sendMessage(chatId, "❌ You have unsubscribed from daily quotes.");
+            bot.sendMessage(chatId, "😢 *Unsubscribed Successfully*\n\nYou won't receive daily quotes anymore.\n\n💡 You can always subscribe again anytime!", {
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            { text: "📅 Subscribe Again", callback_data: "subscribe" },
+                            { text: "🏠 Main Menu", callback_data: "main_menu" }
+                        ]
+                    ]
+                }
+            });
+        } else if (action === "help") {
+            await bot.sendMessage(chatId, "❓ *Help & Commands Guide*\n\n*Available Commands:*\n\n🎲 `/quote` - Get a random quote\n🎯 `/quote <category>` - Get quote by category\n📅 `/subscribe` - Subscribe to daily quotes\n❌ `/unsubscribe` - Unsubscribe from daily quotes\n❓ `/help` - Show this help message\n\n*Available Categories:*\n💪 Motivation\n❤️ Love\n🌿 Life\n🔬 Science\n😂 Funny\n\n*Examples:*\n• `/quote motivation`\n• `/quote love`\n• `/quote funny`\n\n*Features:*\n✨ Beautiful quote images\n🎯 Category-based quotes\n📅 Daily subscription\n🔄 Interactive buttons\n\n*Need more help?* Just use the buttons below!", {
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            { text: "🎲 Try Random Quote", callback_data: "quote" },
+                            { text: "🎯 Browse Categories", callback_data: "category_menu" }
+                        ],
+                        [
+                            { text: "🏠 Main Menu", callback_data: "main_menu" }
+                        ]
+                    ]
+                }
+            });
+        } else if (action === "main_menu") {
+            await bot.sendMessage(chatId, "🌟 *Welcome to Quote Generator Bot!*\n\n✨ Get inspired with beautiful quotes from various categories\n🎯 Choose from Motivation, Love, Life, Science, and Funny quotes\n📅 Subscribe for daily quotes at 9:00 AM\n\n*What would you like to do?*", {
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            { text: "🎲 Random Quote", callback_data: "quote" },
+                            { text: "🎯 Categories", callback_data: "category_menu" }
+                        ],
+                        [
+                            { text: "📅 Subscribe", callback_data: "subscribe" },
+                            { text: "❌ Unsubscribe", callback_data: "unsubscribe" }
+                        ],
+                        [
+                            { text: "❓ Help & Commands", callback_data: "help" }
+                        ]
+                    ],
+                },
+            });
         }
 
         // Acknowledge button press (removes loading animation on button)
@@ -159,13 +260,22 @@ export async function startBot() {
         if (!msg.text) {
             return bot.sendMessage(
                 chatId,
-                "⚠️ I can only understand text messages. Please use the buttons below.",
+                "⚠️ *I can only understand text messages.*\n\nPlease use the interactive buttons below to get started!",
                 {
+                    parse_mode: 'Markdown',
                     reply_markup: {
                         inline_keyboard: [
-                            [{ text: "📝 Random Quote", callback_data: "quote" }],
-                            [{ text: "📅 Subscribe", callback_data: "subscribe" }],
-                            [{ text: "❌ Unsubscribe", callback_data: "unsubscribe" }],
+                            [
+                                { text: "🎲 Random Quote", callback_data: "quote" },
+                                { text: "🎯 Categories", callback_data: "category_menu" }
+                            ],
+                            [
+                                { text: "📅 Subscribe", callback_data: "subscribe" },
+                                { text: "❌ Unsubscribe", callback_data: "unsubscribe" }
+                            ],
+                            [
+                                { text: "❓ Help & Commands", callback_data: "help" }
+                            ]
                         ],
                     },
                 }
@@ -174,27 +284,35 @@ export async function startBot() {
 
         // ✅ If the message is text but not recognized
         if (
-            msg.text !== "📝 Random Quote" &&
+            msg.text !== "🎲 Random Quote" &&
+            msg.text !== "🎯 Categories" &&
             msg.text !== "📅 Subscribe" &&
             msg.text !== "❌ Unsubscribe" &&
-            !msg.text.startsWith("/start")
+            msg.text !== "❓ Help & Commands" &&
+            !msg.text.startsWith("/start") &&
+            !msg.text.startsWith("/quote") &&
+            !msg.text.startsWith("/subscribe") &&
+            !msg.text.startsWith("/unsubscribe") &&
+            !msg.text.startsWith("/help")
         ) {
             return bot.sendMessage(
                 chatId,
-                "❓ I didn’t understand that. Please use the buttons below.",
+                "🤔 *I didn't understand that message.*\n\n💡 Try using the buttons below or type `/help` to see all available commands!",
                 {
+                    parse_mode: 'Markdown',
                     reply_markup: {
                         inline_keyboard: [
-                            [{ text: "📝 Random Quote", callback_data: "quote" }],
-                            [{ text: "🎯 Quote by Category", callback_data: "category_menu" }],
-                            [{ text: "📅 Subscribe", callback_data: "subscribe" }],
-                            [{ text: "❌ Unsubscribe", callback_data: "unsubscribe" }],
-                        ],
-                        inline_keyboard: [
-                            [{ text: "📝 Random Quote", callback_data: "quote" }],
-                            [{ text: "🎯 Quote by Category", callback_data: "category_menu" }],
-                            [{ text: "📅 Subscribe", callback_data: "subscribe" }],
-                            [{ text: "❌ Unsubscribe", callback_data: "unsubscribe" }],
+                            [
+                                { text: "🎲 Random Quote", callback_data: "quote" },
+                                { text: "🎯 Categories", callback_data: "category_menu" }
+                            ],
+                            [
+                                { text: "📅 Subscribe", callback_data: "subscribe" },
+                                { text: "❌ Unsubscribe", callback_data: "unsubscribe" }
+                            ],
+                            [
+                                { text: "❓ Help & Commands", callback_data: "help" }
+                            ]
                         ],
                     },
                 }
@@ -215,12 +333,52 @@ export async function startBot() {
             : await getRandomQuote();
         const imageBuffer = await generateQuoteImage(content, author);
 
+        const categoryEmojis = {
+            motivation: "💪",
+            love: "❤️",
+            life: "🌿",
+            science: "🔬",
+            funny: "😂"
+        };
+
+        const emoji = useCategory ? (categoryEmojis[useCategory] || "🎯") : "🎲";
         const captionPrefix = useCategory
-            ? `🎯 ${useCategory.charAt(0).toUpperCase()}${useCategory.slice(1)} Quote`
-            : "📝 Here’s your quote!";
+            ? `${emoji} *${useCategory.charAt(0).toUpperCase()}${useCategory.slice(1)} Quote*`
+            : "🎲 *Random Quote*";
 
         await bot.sendPhoto(chatId, imageBuffer, {
-            caption: `${captionPrefix}\n- ${author}`,
+            caption: `${captionPrefix}\n\n📝 "${content}"\n\n— *${author}*`,
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        { text: "🔄 Another Quote", callback_data: useCategory ? `category:${useCategory}` : "quote" },
+                        { text: "🎯 Categories", callback_data: "category_menu" }
+                    ],
+                    [
+                        { text: "🏠 Main Menu", callback_data: "main_menu" }
+                    ]
+                ]
+            }
+        });
+    });
+
+    // /help command
+    bot.onText(/\/help/, async (msg) => {
+        const chatId = msg.chat.id;
+        await bot.sendMessage(chatId, "❓ *Help & Commands Guide*\n\n*Available Commands:*\n\n🎲 `/quote` - Get a random quote\n🎯 `/quote <category>` - Get quote by category\n📅 `/subscribe` - Subscribe to daily quotes\n❌ `/unsubscribe` - Unsubscribe from daily quotes\n❓ `/help` - Show this help message\n\n*Available Categories:*\n💪 Motivation\n❤️ Love\n🌿 Life\n🔬 Science\n😂 Funny\n\n*Examples:*\n• `/quote motivation`\n• `/quote love`\n• `/quote funny`\n\n*Features:*\n✨ Beautiful quote images\n🎯 Category-based quotes\n📅 Daily subscription\n🔄 Interactive buttons\n\n*Need more help?* Just use the buttons below!", {
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        { text: "🎲 Try Random Quote", callback_data: "quote" },
+                        { text: "🎯 Browse Categories", callback_data: "category_menu" }
+                    ],
+                    [
+                        { text: "🏠 Main Menu", callback_data: "main_menu" }
+                    ]
+                ]
+            }
         });
     });
 
@@ -262,7 +420,8 @@ export async function startBot() {
                 const { content, author } = await getRandomQuote();
                 const imageBuffer = await generateQuoteImage(content, author);
                 await bot.sendPhoto(sub.chatId, imageBuffer, {
-                    caption: `📅 Daily Quote\n📝 ${content}\n- ${author}`,
+                    caption: `📅 *Daily Quote*\n\n📝 "${content}"\n\n— *${author}*`,
+                    parse_mode: 'Markdown'
                 });
             } catch (error) {
                 console.error(`Failed to send daily quote to ${sub.chatId}:`, error.message);
