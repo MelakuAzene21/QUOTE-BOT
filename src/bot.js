@@ -2,7 +2,7 @@
 import TelegramBot from "node-telegram-bot-api";
 import mongoose from "mongoose";
 import { env } from "./config/env.js";
-import { getRandomQuote } from "./api/quotes.js";
+import { getRandomQuote, getQuoteByCategory } from "./api/quotes.js";
 import { generateQuoteImage } from "./utils/quoteImage.js";
 import cron from "node-cron";
 import { Subscriber } from "./models/Subscriber.js";
@@ -90,6 +90,7 @@ export async function startBot() {
                 reply_markup: {
                     inline_keyboard: [
                         [{ text: "📝 Random Quote", callback_data: "quote" }],
+                        [{ text: "🎯 Quote by Category", callback_data: "category_menu" }],
                         [{ text: "📅 Subscribe", callback_data: "subscribe" }],
                         [{ text: "❌ Unsubscribe", callback_data: "unsubscribe" }],
                     ],
@@ -109,6 +110,32 @@ export async function startBot() {
             const imageBuffer = await generateQuoteImage(content, author);
             await bot.sendPhoto(chatId, imageBuffer, {
                 caption: `📝 "${content}"\n- ${author}`,
+            });
+        } else if (action === "category_menu") {
+            await bot.sendMessage(chatId, "Choose a category:", {
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            { text: "💪 Motivation", callback_data: "category:motivation" },
+                            { text: "❤️ Love", callback_data: "category:love" }
+                        ],
+                        [
+                            { text: "🌿 Life", callback_data: "category:life" },
+                            { text: "🔬 Science", callback_data: "category:science" }
+                        ],
+                        [
+                            { text: "😂 Funny", callback_data: "category:funny" }
+                        ]
+                    ]
+                }
+            });
+        } else if (action.startsWith("category:")) {
+            const category = action.split(":")[1];
+            await bot.sendChatAction(chatId, "typing");
+            const { content, author } = await getQuoteByCategory(category);
+            const imageBuffer = await generateQuoteImage(content, author);
+            await bot.sendPhoto(chatId, imageBuffer, {
+                caption: `🎯 ${category.charAt(0).toUpperCase()}${category.slice(1)} Quote\n📝 "${content}"\n- ${author}`,
             });
         } else if (action === "subscribe") {
             await bot.sendChatAction(chatId, "typing");
@@ -159,6 +186,13 @@ export async function startBot() {
                     reply_markup: {
                         inline_keyboard: [
                             [{ text: "📝 Random Quote", callback_data: "quote" }],
+                            [{ text: "🎯 Quote by Category", callback_data: "category_menu" }],
+                            [{ text: "📅 Subscribe", callback_data: "subscribe" }],
+                            [{ text: "❌ Unsubscribe", callback_data: "unsubscribe" }],
+                        ],
+                        inline_keyboard: [
+                            [{ text: "📝 Random Quote", callback_data: "quote" }],
+                            [{ text: "🎯 Quote by Category", callback_data: "category_menu" }],
                             [{ text: "📅 Subscribe", callback_data: "subscribe" }],
                             [{ text: "❌ Unsubscribe", callback_data: "unsubscribe" }],
                         ],
@@ -168,16 +202,25 @@ export async function startBot() {
         }
     });
 
-    // /quote command
-    bot.onText(/\/quote/, async (msg) => {
+    // /quote command (supports optional category: /quote Motivation)
+    bot.onText(/\/quote(?:\s+(\w+))?/, async (msg, match) => {
         const chatId = msg.chat.id;
         await bot.sendChatAction(chatId, "typing");
 
-        const { content, author } = await getRandomQuote();
+        const maybeCategory = match && match[1] ? match[1] : null;
+        const useCategory = maybeCategory ? maybeCategory.toLowerCase() : null;
+
+        const { content, author } = useCategory
+            ? await getQuoteByCategory(useCategory)
+            : await getRandomQuote();
         const imageBuffer = await generateQuoteImage(content, author);
 
+        const captionPrefix = useCategory
+            ? `🎯 ${useCategory.charAt(0).toUpperCase()}${useCategory.slice(1)} Quote`
+            : "📝 Here’s your quote!";
+
         await bot.sendPhoto(chatId, imageBuffer, {
-            caption: `📝 Here’s your quote!\n- ${author}`,
+            caption: `${captionPrefix}\n- ${author}`,
         });
     });
 
