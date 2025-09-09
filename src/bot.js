@@ -11,7 +11,6 @@ import express from "express";
 const app = express();
 app.use(express.json()); // For parsing application/json
 console.log('✅ Webhook set to: ',env.RENDER_EXTERNAL_URL);
-console
 export async function startBot() {
     try {
         // Connect to MongoDB with proper options
@@ -230,5 +229,5 @@ export async function startBot() {
         timezone: "Africa/Nairobi"
     });
 
-    return bot;
+    return { bot, app };
 }
