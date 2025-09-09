@@ -6,6 +6,12 @@ import { getRandomQuote } from "./api/quotes.js";
 import { generateQuoteImage } from "./utils/quoteImage.js";
 import cron from "node-cron";
 import { Subscriber } from "./models/Subscriber.js";
+import express from "express";
+// Create Express app for webhook handling
+const app = express();
+app.use(express.json()); // For parsing application/json
+console.log('✅ Webhook set to: ',env.RENDER_EXTERNAL_URL);
+console
 export async function startBot() {
     try {
         // Connect to MongoDB with proper options
@@ -47,8 +53,31 @@ export async function startBot() {
     }
 
 
-    const bot = new TelegramBot(env.TELEGRAM_BOT_TOKEN, { polling: true });
-    console.log("🚀 Quote Bot is running...");
+    // Initialize bot with webhook option (no polling)
+    const bot = new TelegramBot(env.TELEGRAM_BOT_TOKEN, {
+        polling: false, // Disable polling
+        onlyFirstMatch: true // Only use the first matching handler
+    });
+
+    // Set up webhook endpoint
+    const webhookPath = `/webhook/${env.TELEGRAM_BOT_TOKEN}`;
+
+    app.post(webhookPath, (req, res) => {
+        bot.processUpdate(req.body);
+        res.sendStatus(200);
+    });
+
+    // Set webhook on startup
+    try {
+        const webhookUrl = `${env.RENDER_EXTERNAL_URL}${webhookPath}`;
+        await bot.setWebHook(webhookUrl);
+        console.log(`✅ Webhook set to: ${webhookUrl}`);
+    } catch (error) {
+        console.error('❌ Failed to set webhook:', error);
+    }
+
+    console.log("🚀 Quote Bot is running with webhooks...");
+
 
     // /start command
     // inside /start command
