@@ -51,15 +51,93 @@ export async function startBot() {
     console.log("🚀 Quote Bot is running...");
 
     // /start command
+    // inside /start command
     bot.onText(/\/start/, (msg) => {
+        const chatId = msg.chat.id;
+
         bot.sendMessage(
-            msg.chat.id,
-            "👋 Hello! I am Quote Generator Bot.\n\n" +
-            "Commands:\n" +
-            "➡️ /quote - Get a random quote\n" +
-            "➡️ /subscribe - Get daily quote\n" +
-            "➡️ /unsubscribe - Stop daily quote"
+            chatId,
+            "👋 Welcome to Quote Generator Bot!\n\nChoose an option below:",
+            {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "📝 Random Quote", callback_data: "quote" }],
+                        [{ text: "📅 Subscribe", callback_data: "subscribe" }],
+                        [{ text: "❌ Unsubscribe", callback_data: "unsubscribe" }],
+                    ],
+                },
+            }
         );
+    });
+
+    // Handle button clicks
+    bot.on("callback_query", async (query) => {
+        const chatId = query.message.chat.id;
+        const action = query.data;
+
+        if (action === "quote") {
+            await bot.sendChatAction(chatId, "typing");
+            const { content, author } = await getRandomQuote();
+            const imageBuffer = await generateQuoteImage(content, author);
+            await bot.sendPhoto(chatId, imageBuffer, {
+                caption: `📝 "${content}"\n- ${author}`,
+            });
+        } else if (action === "subscribe") {
+            await bot.sendChatAction(chatId, "typing");
+            await Subscriber.updateOne({ chatId }, { chatId }, { upsert: true });
+            bot.sendMessage(chatId, "✅ You are subscribed for daily quotes at 9:00 AM.");
+        } else if (action === "unsubscribe") {
+            await bot.sendChatAction(chatId, "typing");
+            await Subscriber.deleteOne({ chatId });
+            bot.sendMessage(chatId, "❌ You have unsubscribed from daily quotes.");
+        }
+
+        // Acknowledge button press (removes loading animation on button)
+        bot.answerCallbackQuery(query.id);
+    });
+
+    // Listen for all messages
+    bot.on("message", async (msg) => {
+        const chatId = msg.chat.id;
+
+        // ✅ If the message is not text (voice, audio, video, etc.)
+        if (!msg.text) {
+            return bot.sendMessage(
+                chatId,
+                "⚠️ I can only understand text messages. Please use the buttons below.",
+                {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "📝 Random Quote", callback_data: "quote" }],
+                            [{ text: "📅 Subscribe", callback_data: "subscribe" }],
+                            [{ text: "❌ Unsubscribe", callback_data: "unsubscribe" }],
+                        ],
+                    },
+                }
+            );
+        }
+
+        // ✅ If the message is text but not recognized
+        if (
+            msg.text !== "📝 Random Quote" &&
+            msg.text !== "📅 Subscribe" &&
+            msg.text !== "❌ Unsubscribe" &&
+            !msg.text.startsWith("/start")
+        ) {
+            return bot.sendMessage(
+                chatId,
+                "❓ I didn’t understand that. Please use the buttons below.",
+                {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "📝 Random Quote", callback_data: "quote" }],
+                            [{ text: "📅 Subscribe", callback_data: "subscribe" }],
+                            [{ text: "❌ Unsubscribe", callback_data: "unsubscribe" }],
+                        ],
+                    },
+                }
+            );
+        }
     });
 
     // /quote command
